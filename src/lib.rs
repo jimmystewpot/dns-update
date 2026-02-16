@@ -18,13 +18,14 @@ use std::{
     time::Duration,
 };
 
-use hickory_client::proto::rr::dnssec::{KeyPair, Private};
+use hickory_client::proto::dnssec::SigningKey;
 
 use providers::{
     bunny::BunnyProvider,
     cloudflare::CloudflareProvider,
     desec::DesecProvider,
     digitalocean::DigitalOceanProvider,
+    gcp_dns::{GcpDnsConfig, GcpDnsProvider},
     ovh::{OvhEndpoint, OvhProvider},
     rfc2136::{DnsAddress, Rfc2136Provider},
 };
@@ -121,6 +122,7 @@ pub enum DnsUpdater {
     Desec(DesecProvider),
     Ovh(OvhProvider),
     Bunny(BunnyProvider),
+    GcpDns(GcpDnsProvider),
 }
 
 pub trait IntoFqdn<'x> {
@@ -148,7 +150,7 @@ impl DnsUpdater {
     pub fn new_rfc2136_sig0(
         addr: impl TryInto<DnsAddress>,
         signer_name: impl AsRef<str>,
-        key: KeyPair<Private>,
+        key: Box<dyn SigningKey>,
         public_key: impl Into<Vec<u8>>,
         algorithm: Algorithm,
     ) -> crate::Result<Self> {
@@ -211,6 +213,11 @@ impl DnsUpdater {
         Ok(DnsUpdater::Bunny(BunnyProvider::new(api_key, timeout)?))
     }
 
+    /// Create a new DNS updater using the Google Cloud DNS API.
+    pub async fn new_gcp_dns(config: GcpDnsConfig) -> crate::Result<Self> {
+        Ok(DnsUpdater::GcpDns(GcpDnsProvider::new(config).await?))
+    }
+
     /// Create a new DNS record.
     pub async fn create(
         &self,
@@ -226,6 +233,7 @@ impl DnsUpdater {
             DnsUpdater::Desec(provider) => provider.create(name, record, ttl, origin).await,
             DnsUpdater::Ovh(provider) => provider.create(name, record, ttl, origin).await,
             DnsUpdater::Bunny(provider) => provider.create(name, record, ttl, origin).await,
+            DnsUpdater::GcpDns(provider) => provider.create(name, record, ttl, origin).await,
         }
     }
 
@@ -244,6 +252,7 @@ impl DnsUpdater {
             DnsUpdater::Desec(provider) => provider.update(name, record, ttl, origin).await,
             DnsUpdater::Ovh(provider) => provider.update(name, record, ttl, origin).await,
             DnsUpdater::Bunny(provider) => provider.update(name, record, ttl, origin).await,
+            DnsUpdater::GcpDns(provider) => provider.update(name, record, ttl, origin).await,
         }
     }
 
@@ -261,6 +270,7 @@ impl DnsUpdater {
             DnsUpdater::Desec(provider) => provider.delete(name, origin, record).await,
             DnsUpdater::Ovh(provider) => provider.delete(name, origin, record).await,
             DnsUpdater::Bunny(provider) => provider.delete(name, origin, record).await,
+            DnsUpdater::GcpDns(provider) => provider.delete(name, origin, record).await,
         }
     }
 }

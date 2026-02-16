@@ -10,9 +10,9 @@
  */
 
 use crate::{strip_origin_from_name, DnsRecord, Error, IntoFqdn};
+use aws_lc_rs::digest;
 use reqwest::Method;
 use serde::Serialize;
-use sha1::{Digest, Sha1};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
@@ -148,10 +148,9 @@ impl OvhProvider {
             self.application_secret, self.consumer_key, method, url, body, timestamp
         );
 
-        let mut hasher = Sha1::new();
-        hasher.update(data.as_bytes());
-        let hash = hasher.finalize();
+        let hash = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, data.as_bytes());
         let hex_string = hash
+            .as_ref()
             .iter()
             .map(|b| format!("{:02x}", b))
             .collect::<String>();
